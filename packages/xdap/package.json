@@ -1,0 +1,24 @@
+{
+  "name": "@produck/xdap",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "types": "index.d.ts",
+  "keywords": [
+    "directory",
+    "dap",
+    "dom",
+    "xml",
+    "xpath"
+  ],
+  "author": "ChaosLee",
+  "license": "MIT",
+  "dependencies": {
+    "ajv": "^8.1.0",
+    "xmldom": "^0.5.0",
+    "xpath": "^0.0.32"
+  }
+}

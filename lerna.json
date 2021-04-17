@@ -1,0 +1,12 @@
+{
+  "packages": [
+    "packages/xdap"
+  ],
+  "npmClient": "npm",
+  "command": {
+    "publish": {
+      "registry": "https://registry.npmjs.org/"
+    }
+  },
+  "version": "independent"
+}
