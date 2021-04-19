@@ -1,65 +1,40 @@
 'use strict';
 
-const { DOMParser } = require('xmldom');
-const xpath = require('xpath');
 const utils = require('./src/utils');
 
-module.exports = function XmlDirectoryAccessServer(factory, store, server) {
-	const context = {
-		definition: {
-			tags: {},
-			objectClasses: {},
-			restrictions: {}
-		},
-		tags: {},
-		store: {},
-		document: new DOMParser().parseFromString('<repository />')
-	};
+module.exports = function XmlDirectoryAccessServer(definition, store, server) {
 
-	const ISchema = Object.freeze({
-		objectClass(name, attributes) {
-			if (name in context.definition.objectClasses) {
-				throw new Error(`Duplicated object class definition "${name}"`);
-			}
 
-			context.definition.objectClasses[name] = attributes;
-		},
-		tag(name, objectClasses) {
-			if (name in context.definition.tags) {
-				throw new Error(`Duplicated element tag definition "${name}"`);
-			}
-
-			utils.assertObjectClasses(objectClasses);
-			context.definition.tags[name] = objectClasses;
-		}
-	});
-
-	factory(ISchema);
-	store.open();
-
-	function compile() {
-
-	}
-
-	function validateRestriction(currentTagName, parentTagName) {
-		return Boolean(context.definition.restrictions[parentTagName][currentTagName]);
-	}
-
-	function querySelectorAll(selector, thisNode = context.document) {
-		return xpath.select(selector, thisNode);
-	}
-
-	function querySelector(selector, thisNode = context.document) {
-		return xpath.select1(selector, thisNode);
-	}
+	factory(descriptor);
+	descriptor.close();
 
 	return Object.freeze({
+		async open() {
+			store.open();
+		},
 		async move(currentNodeId, parentNodeId) {
 			const current = utils.resolveNodeId(currentNodeId);
 			const parent = utils.resolveNodeId(parentNodeId);
 
+			const currentNode = querySelector(current.selector);
+
+			if (!currentNode) {
+				throw new Error('The moving node is NOT existed.');
+			}
+
+			const parentNode = querySelector(parent.selector);
+
+			if (!parentNode) {
+				throw new Error('The parent node moving to is NOT existed.');
+			}
+
+			// Circular reference checking
+			await context.store.write();
+			currentNode.parentNode.removeChild(currentNode);
+			parentNode.appendChild(currentNode);
 		},
 		async modify(currentNodeId, attributes) {
+			const current = utils.resolveNodeId(currentNodeId);
 
 		},
 		async add(currentNodeId, parentNodeId, attributes) {
