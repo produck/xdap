@@ -11,7 +11,7 @@ module.exports = function DocuemntRebuilder(repository) {
 
 	const cache = {
 		free: {},
-		sub: {},
+		families: {},
 		mounted: {
 			'': document.documentElement
 		}
@@ -35,22 +35,19 @@ module.exports = function DocuemntRebuilder(repository) {
 		const element = createElement(id, attributes);
 
 		// About parent
-		const isParentMounted = cache.mounted[parentId];
-		const parentElement = isParentMounted
-			? cache.mounted[parentId]
-			: cache.free[parentId];
+		const parentElement = cache.mounted[parentId];
 
 		if (parentElement) {
 			parentElement.appendChild(element);
 		} else {
-			if (cache.free[parentId]) {
+			if (!cache.free[parentId]) {
 				cache.free[parentId] = {};
 			}
 
 			cache.free[parentId][id] = element;
 		}
 
-		const familyMap = { [id]: true };
+		const familyMap = { [id]: element };
 
 		// About children
 		const freeChildMap = cache.free[id];
@@ -58,25 +55,26 @@ module.exports = function DocuemntRebuilder(repository) {
 		if (freeChildMap) {
 			for (const childId in freeChildMap) {
 				element.appendChild(freeChildMap[childId]);
-				Object.assign(familyMap, cache.sub[childId]);
-				delete cache.sub[childId];
+				Object.assign(familyMap, cache.families[childId]);
+				delete cache.families[childId];
 			}
 
 			delete cache.free[id];
 		}
 
 		// About indexies
-		if (isParentMounted) {
+		if (parentElement) {
 			Object.assign(cache.mounted, familyMap);
+			repository.appendIndex(element.tagName, element.id, element);
 		} else {
-			cache.sub[id] = familyMap;
+			cache.families[id] = familyMap;
 		}
 	}
 
 	return {
 		feed: feedNodeData,
 		finish() {
-
+			console.log(cache);
 		}
 	};
 };
