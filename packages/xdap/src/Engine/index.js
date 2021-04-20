@@ -1,7 +1,28 @@
 'use strict';
 
 const Descriptor = require('./Descriptor');
-const { Repository, resolveNodeId } = require('./Repository');
+const { Repository } = require('./Repository');
+const Rebuilder = require('./Rebuilder');
+
+function isParentOf(parentElement, childElement) {
+	while (childElement.parent) {
+		const currentParent = childElement.parent;
+
+		if (currentParent === parentElement) {
+			return true;
+		}
+
+		childElement = currentParent;
+	}
+
+	return false;
+}
+
+function resolveNodeId(idString) {
+	const [tagName, id] = idString.split(':');
+
+	return { tagName: tagName.trim(), id: id.trim() };
+}
 
 module.exports = function XMLDirectoryAccessEngine(definitionObject, store) {
 	const Definition = Descriptor(definitionObject);
@@ -10,64 +31,29 @@ module.exports = function XMLDirectoryAccessEngine(definitionObject, store) {
 
 	return Object.freeze({
 		async open() {
-			const document = repository.document;
+			const rebuilder = Rebuilder(repository);
 
-			const cache = {
-				free: {},
-				mounted: {
-					'': document.documentElement
-				}
-			};
-
-			await store.open(nodeData => {
-				const { id, attributes, parentId } = nodeData;
-				const current = resolveNodeId(id);
-				const element = document.createElement(current.tagName);
-
-				const isParentMounted = cache.mounted[parentId];
-				const parentElement = isParentMounted
-					? cache.mounted[parentId]
-					: cache.free[parentId];
-
-				if (parentElement) {
-					parentElement.appendChild(element);
-				} else {
-					if (cache.free[parentId]) {
-						cache.free[parentId] = {};
-					}
-
-					cache.free[parentId][id] = element;
-				}
-
-				const freeChildMap = cache.free[id];
-
-				if (freeChildMap) {
-					for (const childId in freeChildMap) {
-						element.appendChild(freeChildMap[childId]);
-					}
-
-					delete cache.free[id];
-				}
-			});
+			await store.open(nodeData => rebuilder.feed(nodeData));
+			rebuilder.finish();
 		},
 		async search(selector) {
 			return repository.querySelectorAll(selector);
 		},
-		async add(currentNodeId, parentNodeId, attributes) {
-			const current = resolveNodeId(currentNodeId);
-			const parent = resolveNodeId(parentNodeId);
+		async add(currentId, parentId, attributes) {
+			const current = resolveNodeId(currentId);
+			const parent = resolveNodeId(parentId);
 
 			if (!Definition[parent.tagName].isParentOf(current.tagName)) {
 				throw new Error(`A "${current.tagName}" can NOT be a child of a "${parent.tagName}".`);
 			}
 
-			const currentElement = repository.findById(currentNodeId);
+			const currentElement = repository.findById(current.tagName, current.id);
 
 			if (currentElement !== null) {
 				throw new Error(`The node <${current.tagName} id="${current.id}" /> has been existed.`);
 			}
 
-			const parentElement = repository.findById(parentNodeId);
+			const parentElement = repository.findById(parent.tagName, parent.id);
 
 			if (!parentElement) {
 				throw new Error(`The parent node <${parent.tagName} id="${parent.id}" /> is NOT existed.`);
@@ -78,7 +64,14 @@ module.exports = function XMLDirectoryAccessEngine(definitionObject, store) {
 			}
 
 			try {
-				await store.write();
+				await store.write('add', {
+					tagName: current.tagName,
+					id: current.id,
+					attributes: {},
+				}, {
+					tagName: parent.tagName,
+					id: parent.id
+				});
 			} catch (err) {
 
 			}
@@ -94,16 +87,20 @@ module.exports = function XMLDirectoryAccessEngine(definitionObject, store) {
 
 			return 0;
 		},
-		async delete(currentNodeId) {
-			const current = resolveNodeId(currentNodeId);
-			const currentElement = repository.findById(currentNodeId);
+		async delete(currentId) {
+			const current = resolveNodeId(currentId);
+			const currentElement = repository.findById(current.tagName, current.id);
 
 			if (!currentElement) {
 				throw new Error(`The node <${current.tagName} id="${current.id}" /> is NOT existed.`);
 			}
 
 			try {
-				await store.write();
+				await store.write('delete', {
+					tagName: current.tagName,
+					id: current.id,
+					attributes: {},
+				});
 			} catch (err) {
 
 			}
@@ -112,9 +109,9 @@ module.exports = function XMLDirectoryAccessEngine(definitionObject, store) {
 
 			return 0;
 		},
-		async modify(currentNodeId, attributes) {
-			const current = resolveNodeId(currentNodeId);
-			const currentElement = repository.findById(currentNodeId);
+		async modify(currentId, attributes) {
+			const current = resolveNodeId(currentId);
+			const currentElement = repository.findById(current.tagName, current.id);
 
 			if (!currentElement) {
 				throw new Error(`The node <${current.tagName} id="${current.id}" /> is NOT existed.`);
@@ -125,7 +122,11 @@ module.exports = function XMLDirectoryAccessEngine(definitionObject, store) {
 			}
 
 			try {
-				await store.write();
+				await store.write('modify', {
+					tagName: current.tagName,
+					id: current.id,
+					attributes: {},
+				});
 			} catch (err) {
 
 			}
@@ -135,5 +136,41 @@ module.exports = function XMLDirectoryAccessEngine(definitionObject, store) {
 			}
 
 		},
+		async move(currentId, parentId) {
+			const current = resolveNodeId(currentId);
+			const parent = resolveNodeId(parentId);
+
+			const currentElement = repository.findById(current.tagName, current.id);
+
+			if (!currentElement) {
+				throw new Error('The moving node is NOT existed.');
+			}
+
+			const parentElement = repository.findById(parent.tagName, parent.id);
+
+			if (!parentElement) {
+				throw new Error('The parent node moving to is NOT existed.');
+			}
+
+			if (isParentOf(currentElement, parentElement)) {
+				throw new Error ('circular');
+			}
+
+			try {
+				await store.write('move', {
+					tagName: current.tagName,
+					id: current.id,
+					attributes: {},
+				}, {
+					tagName: parent.tagName,
+					id: parent.id
+				});
+			} catch (err) {
+
+			}
+
+			currentElement.parentNode.removeChild(currentElement);
+			parentElement.appendChild(currentElement);
+		}
 	});
 };

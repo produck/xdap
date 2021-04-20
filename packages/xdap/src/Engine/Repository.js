@@ -3,14 +3,6 @@
 const { DOMParser } = require('xmldom');
 const xpath = require('xpath');
 
-function resolveNodeId(idString) {
-	const [tagName, id] = idString.split(':');
-
-	return { tagName: tagName.trim(), id: id.trim() };
-}
-
-exports.resolveNodeId = resolveNodeId;
-
 exports.Repository = function Repository(tagNameList) {
 	const context = {
 		document: new DOMParser().parseFromString('<repository />'),
@@ -30,8 +22,7 @@ exports.Repository = function Repository(tagNameList) {
 		querySelector(selector, thisNode = context.document) {
 			return xpath.select1(selector, thisNode);
 		},
-		findById(nodeId) {
-			const { tagName, id } = resolveNodeId(nodeId);
+		findById(tagName, id) {
 			const element = context.index[tagName][id];
 
 			return element ? element : null;
