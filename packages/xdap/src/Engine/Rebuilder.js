@@ -12,8 +12,10 @@ module.exports = function DocuemntRebuilder(repository) {
 	const cache = {
 		free: {},
 		families: {},
-		mounted: {
+		all: {
 			'': document.documentElement
+		},
+		mounted: {
 		}
 	};
 
@@ -34,8 +36,11 @@ module.exports = function DocuemntRebuilder(repository) {
 	function feedNodeData({ id, attributes, parentId }) {
 		const element = createElement(id, attributes);
 
+		cache.all[id] = element;
+
 		// About parent
-		const parentElement = cache.mounted[parentId];
+		const isParentMounted = cache.mounted[parentId];
+		const parentElement = cache.all[parentId];
 
 		if (parentElement) {
 			parentElement.appendChild(element);
@@ -63,7 +68,7 @@ module.exports = function DocuemntRebuilder(repository) {
 		}
 
 		// About indexies
-		if (parentElement) {
+		if (isParentMounted) {
 			Object.assign(cache.mounted, familyMap);
 			repository.appendIndex(element.tagName, element.id, element);
 		} else {
